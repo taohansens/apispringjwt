@@ -18,10 +18,10 @@ import java.util.Date;
 public class JwtUtil {
     
     @Value("${jwt.secret}")
-    private String SECRET_KEY;
+    private String secretKey;
 
     @Value("${jwt.expiration}")
-    private long EXPIRATION_TIME;
+    private long expirationTime;
 
     /**
      * Generates a JWT token for the given email address.  The token includes the email as the
@@ -34,8 +34,8 @@ public class JwtUtil {
         return JWT.create()
                 .withSubject(email)
                 .withIssuedAt(new Date())
-                .withExpiresAt(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .sign(Algorithm.HMAC256(SECRET_KEY));
+                .withExpiresAt(new Date(System.currentTimeMillis() + expirationTime))
+                .sign(Algorithm.HMAC256(secretKey));
     }
 
     /**
@@ -47,7 +47,7 @@ public class JwtUtil {
      */
     public boolean validateToken(String token) {
         try {
-            JWT.require(Algorithm.HMAC256(SECRET_KEY)).build().verify(token);
+            JWT.require(Algorithm.HMAC256(secretKey)).build().verify(token);
             return true;
         } catch (JWTVerificationException | IllegalArgumentException e) {
             return false;
@@ -62,6 +62,6 @@ public class JwtUtil {
      * @return The email address extracted from the token's subject claim.
      */
     public String extractEmail(String token) {
-        return JWT.require(Algorithm.HMAC256(SECRET_KEY)).build().verify(token).getSubject();
+        return JWT.require(Algorithm.HMAC256(secretKey)).build().verify(token).getSubject();
     }
 }
