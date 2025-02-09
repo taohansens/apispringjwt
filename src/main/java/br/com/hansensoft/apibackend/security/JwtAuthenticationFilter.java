@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -13,14 +14,24 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+import br.com.hansensoft.apibackend.exception.StandardError;
 import br.com.hansensoft.apibackend.model.User;
 import br.com.hansensoft.apibackend.repository.jpa.UserRepository;
 
 import java.io.IOException;
+import java.time.Instant;
+
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 
-import java.util.Collections;
+import java.util.stream.Collectors;
 
 /**
  * A Spring component that acts as a JWT authentication filter.  This filter intercepts incoming
@@ -34,41 +45,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
 
-    /**
-     * Performs the filtering logic for JWT authentication.  This method is called once for each
-     * incoming request.
-     *
-     * @param request     The HTTP request.
-     * @param response    The HTTP response.
-     * @param chain       The filter chain.
-     * @throws ServletException If a servlet exception occurs.
-     * @throws IOException      If an I/O exception occurs.
-     */
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain chain) throws ServletException, IOException {
-
-        // Get token from the Authorization header
+        try {
         String authHeaders = request.getHeader(HttpHeaders.AUTHORIZATION);
         if(authHeaders == null || !authHeaders.startsWith("Bearer ")) {
-            // No token found or invalid format, continue with the filter chain
             chain.doFilter(request, response);
             return;
         }
 
         // Extract the token from the "Bearer <token>" format
         String token = authHeaders.substring(7);
-        // Extract the email address from the JWT
         String email = jwtUtil.extractEmail(token);
 
         // If the email is found and no authentication is currently present in the security context
         if(email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            // Retrieve the user from the database using the email
             User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found!"));
-            // Create a UserDetails object from the retrieved user
             UserDetails userDetails = org.springframework.security.core.userdetails.User.withUsername(user.getEmail())
-                    .password(user.getPassword())
-                    .authorities(Collections.emptyList()) // Replace with actual roles/authorities if needed
-                    .build();
+            .password(user.getPassword())
+            .authorities(user.getRoles().stream()
+                    .map(role -> new SimpleGrantedAuthority(role.getName()))
+                    .collect(Collectors.toList()))
+            .build();
 
             // Validate the JWT
             if (jwtUtil.validateToken(token)) {
@@ -82,5 +80,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         // Continue with the filter chain
         chain.doFilter(request, response);
+        } catch (JWTVerificationException e) {
+            setErrorResponse(HttpStatus.UNAUTHORIZED, response, e.getMessage(), request.getRequestURI());
+        }
+    }
+         
+
+    private void setErrorResponse(HttpStatus status, HttpServletResponse response, String message, String path) throws IOException {
+        StandardError error = new StandardError();
+        error.setTimestamp(Instant.now());
+        error.setStatus(status.value());
+        error.setError(status.getReasonPhrase());
+        error.setMessage(message);
+        error.setPath(path);
+
+        response.setStatus(status.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write(convertObjectToJson(error));
+    }
+
+    private String convertObjectToJson(Object object) throws IOException {
+        if (object == null) {
+            return null;
+        }
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return mapper.writeValueAsString(object);
     }
 }

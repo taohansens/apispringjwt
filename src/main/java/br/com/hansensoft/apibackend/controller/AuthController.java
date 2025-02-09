@@ -3,6 +3,7 @@ package br.com.hansensoft.apibackend.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import br.com.hansensoft.apibackend.dto.AuthRequest;
 import br.com.hansensoft.apibackend.dto.AuthResponse;
 import br.com.hansensoft.apibackend.dto.LoginRequest;
+import br.com.hansensoft.apibackend.dto.UserDTO;
 import br.com.hansensoft.apibackend.service.AuthService;
 
 /**
@@ -49,5 +51,16 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    /**
+     * Endpoint for retrieving the authenticated user's information.
+     *
+     * @return A {@link ResponseEntity} containing the authenticated user's information.
+     */
+    @GetMapping("/me")
+    public ResponseEntity<UserDTO> getAuthenticatedUser() {
+        UserDTO userDTO = authService.getAuthenticatedUser();
+        return ResponseEntity.ok(userDTO);
     }
 }
