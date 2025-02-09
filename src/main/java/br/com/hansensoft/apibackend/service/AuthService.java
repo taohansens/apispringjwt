@@ -1,6 +1,11 @@
 package br.com.hansensoft.apibackend.service;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -8,6 +13,7 @@ import org.springframework.stereotype.Service;
 import br.com.hansensoft.apibackend.dto.AuthRequest;
 import br.com.hansensoft.apibackend.dto.AuthResponse;
 import br.com.hansensoft.apibackend.dto.LoginRequest;
+import br.com.hansensoft.apibackend.dto.UserDTO;
 import br.com.hansensoft.apibackend.exception.service.AccountException;
 import br.com.hansensoft.apibackend.exception.service.AuthException;
 import br.com.hansensoft.apibackend.model.Role;
@@ -17,6 +23,7 @@ import br.com.hansensoft.apibackend.repository.jpa.UserRepository;
 import br.com.hansensoft.apibackend.security.JwtUtil;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 
@@ -98,7 +105,7 @@ public class AuthService {
      * @throws RuntimeException If the email or password is invalid.
      */
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new RuntimeException("Invalid email or password"));
+        User user = userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new AuthException("Invalid email or password"));
 
         // Verify Password
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -109,5 +116,20 @@ public class AuthService {
         String token = jwtUtil.generateToken(user.getEmail());
 
         return new AuthResponse(token, "Login Successful");
+    }
+
+    public UserDTO getAuthenticatedUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new UsernameNotFoundException("User not found!"));
+        return convertToUserDTO(user);
+    }
+
+    public UserDTO convertToUserDTO(User user) {
+    List<String> roles = user.getRoles().stream()
+            .map(Role::getName)
+            .toList();
+    return new UserDTO(user.getUsername(), user.getEmail(), roles);
     }
 }
