@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import br.com.hansensoft.apibackend.dto.AuthRequest;
 import br.com.hansensoft.apibackend.dto.AuthResponse;
 import br.com.hansensoft.apibackend.dto.LoginRequest;
+import br.com.hansensoft.apibackend.exception.service.AccountException;
+import br.com.hansensoft.apibackend.exception.service.AuthException;
 import br.com.hansensoft.apibackend.model.User;
 import br.com.hansensoft.apibackend.repository.jpa.UserRepository;
 import br.com.hansensoft.apibackend.security.JwtUtil;
@@ -51,7 +53,7 @@ public class AuthService {
     public AuthResponse register(AuthRequest request) {
         // Check if email already in use
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email is already in use.");
+            throw new AccountException("Email is already in use.");
         }
 
         // Hash Password
@@ -85,7 +87,7 @@ public class AuthService {
 
         // Verify Password
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid email or Password");
+            throw new AuthException("Invalid email or Password");
         }
 
         // Generate JWT Token
