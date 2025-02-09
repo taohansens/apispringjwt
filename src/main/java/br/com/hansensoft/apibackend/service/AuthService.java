@@ -10,7 +10,9 @@ import br.com.hansensoft.apibackend.dto.AuthResponse;
 import br.com.hansensoft.apibackend.dto.LoginRequest;
 import br.com.hansensoft.apibackend.exception.service.AccountException;
 import br.com.hansensoft.apibackend.exception.service.AuthException;
+import br.com.hansensoft.apibackend.model.Role;
 import br.com.hansensoft.apibackend.model.User;
+import br.com.hansensoft.apibackend.repository.jpa.RoleRepository;
 import br.com.hansensoft.apibackend.repository.jpa.UserRepository;
 import br.com.hansensoft.apibackend.security.JwtUtil;
 
@@ -31,6 +33,11 @@ public class AuthService {
      * and retrieving user details during login.  Injected via constructor injection.
      */
     private final UserRepository userRepository;
+    /**
+     * Repository for accessing role data.  Used for checking roles types available.  Injected 
+     * via constructor injection.
+     */
+    private final RoleRepository roleRepository;
     /**
      * Utility class for JWT operations (generating tokens).  Used for creating JWT tokens
      * upon successful registration or login.  Injected via constructor injection.
@@ -60,9 +67,17 @@ public class AuthService {
         String hashedPassword = passwordEncoder.encode(request.getPassword());
 
         // Assign default role if no one is provided.
-        Set<String> roles = request.getRoles() != null ? request.getRoles() : new HashSet<>();
-        if (roles.isEmpty()) {
-            roles.add("USER");
+        Set<Role> roles = new HashSet<>();
+        if (request.getRoles() == null || request.getRoles().isEmpty()) {
+            Role userRole = roleRepository.findByName("USER")
+                    .orElseThrow(() -> new RuntimeException("Role not found"));
+            roles.add(userRole);
+        } else {
+            for (String roleName : request.getRoles()) {
+                Role role = roleRepository.findByName(roleName)
+                        .orElseThrow(() -> new RuntimeException("Role not found"));
+                roles.add(role);
+            }
         }
 
         // Create User
